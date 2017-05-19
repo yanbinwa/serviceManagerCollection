@@ -1,0 +1,13 @@
+tomcatPort : 8103
+
+serviceProperties:
+    serviceDataProperites:
+        serviceName : "ServiceC"
+        ip : "172.18.0.33"
+        port : 8103
+        rootUrl : "/collection"
+    zNodeInfoProperites:
+        regZnodePath : "/regManageNode"
+        regZnodeChildPath : "/regManageNode/regManageChildNode"
+        depZnodePath : "/depManageNode"
+        zookeeperHostport : "192.168.56.17:2181"

@@ -1,0 +1,13 @@
+tomcatPort : 8102
+
+serviceProperties:
+    serviceDataProperites:
+        serviceName : "ServiceB"
+        ip : "172.18.0.32"
+        port : 8102
+        rootUrl : "/collection"
+    zNodeInfoProperites:
+        regZnodePath : "/regManageNode"
+        regZnodeChildPath : "/regManageNode/regManageChildNode"
+        depZnodePath : "/depManageNode"
+        zookeeperHostport : "172.18.0.21:2191,172.18.0.22:2192,172.18.0.23:2193"
