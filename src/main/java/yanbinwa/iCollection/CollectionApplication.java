@@ -15,7 +15,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 @ConfigurationProperties(prefix = "tomcatPort")
 public class CollectionApplication implements EmbeddedServletContainerCustomizer
 {
-    
     @Value("${tomcatPort:}")
     int tomcatPort;
     

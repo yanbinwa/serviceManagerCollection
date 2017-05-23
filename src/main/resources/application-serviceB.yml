@@ -1,15 +1,13 @@
-tomcatPort : 8082
-
-serviceProperties :
+serviceProperties:
     serviceDataProperites:
-        serviceName : "collection"
-        ip : "localhost"
-        port : 8082
+        serviceName : "collection_B"
+        ip : "172.18.0.32"
+        port : 8102
         rootUrl : "/collection"
     zNodeInfoProperites:
         regZnodePath : "/regManageNode"
         regZnodeChildPath : "/regManageNode/regManageChildNode"
         depZnodePath : "/depManageNode"
-        zookeeperHostport : "192.168.56.17:2181"
+        zookeeperHostport : "172.18.0.11:2191,172.18.0.12:2192,172.18.0.13:2193"
 
-endpoints.shutdown.enabled : true
+tomcatPort: 8102
