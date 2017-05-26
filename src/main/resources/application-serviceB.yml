@@ -1,10 +1,10 @@
 serviceProperties:
-    serviceDataProperites:
+    serviceDataProperties:
         serviceName : "collection_B"
         ip : "172.18.0.32"
         port : 8102
         rootUrl : "/collection"
-    zNodeInfoProperites:
+    zNodeInfoProperties:
         regZnodePath : "/regManageNode"
         regZnodeChildPath : "/regManageNode/regManageChildNode"
         depZnodePath : "/depManageNode"
