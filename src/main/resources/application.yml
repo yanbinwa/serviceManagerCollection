@@ -1,6 +1,7 @@
 serviceProperties :
     serviceDataProperties:
-        serviceName : "collection"
+        serviceGroupName : "collection"
+        serviceName : "collection_1"
         ip : "localhost"
         port : 8082
         rootUrl : "/collection"
@@ -10,11 +11,12 @@ serviceProperties :
         depZnodePath : "/depManageNode"
         zookeeperHostport : "192.168.56.17:2181"
     kafkaProducerProperties:
-        brokerList : "192.168.56.17:9092"
-        serializerClass : "org.apache.kafka.common.serialization.StringSerializer"
-        batchSize : "200"
-        retries : "0"
-        maxBlockMs : "5000"
+        cacheTopic:
+            brokerList : "192.168.56.17:9092"
+            serializerClass : "org.apache.kafka.common.serialization.StringSerializer"
+            batchSize : "200"
+            retries : "0"
+            maxBlockMs : "5000"
 
 tomcatPort : 8082
 

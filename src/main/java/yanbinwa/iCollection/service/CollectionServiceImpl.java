@@ -1,5 +1,6 @@
 package yanbinwa.iCollection.service;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -17,6 +18,8 @@ import yanbinwa.common.orchestrationClient.OrchestartionCallBack;
 import yanbinwa.common.orchestrationClient.OrchestrationClient;
 import yanbinwa.common.orchestrationClient.OrchestrationClientImpl;
 import yanbinwa.common.orchestrationClient.OrchestrationServiceState;
+import yanbinwa.common.zNodedata.ZNodeDataUtil;
+import yanbinwa.common.zNodedata.ZNodeDependenceData;
 import yanbinwa.common.zNodedata.ZNodeServiceData;
 import yanbinwa.iCollection.exception.ServiceUnavailableException;
 
@@ -31,7 +34,7 @@ public class CollectionServiceImpl implements CollectionService
     
     Map<String, String> serviceDataProperties;
     Map<String, String> zNodeInfoProperties;
-    Map<String, String> kafkaProducerProperties;
+    Map<String, Object> kafkaProducerProperties;
     
     public void setServiceDataProperties(Map<String, String> properties)
     {
@@ -53,12 +56,12 @@ public class CollectionServiceImpl implements CollectionService
         return this.zNodeInfoProperties;
     }
     
-    public void setKafkaProducerProperties(Map<String, String> properties)
+    public void setKafkaProducerProperties(Map<String, Object> properties)
     {
         this.kafkaProducerProperties = properties;
     }
     
-    public Map<String, String> getKafkaProducerProperties()
+    public Map<String, Object> getKafkaProducerProperties()
     {
         return this.kafkaProducerProperties;
     }
@@ -67,7 +70,7 @@ public class CollectionServiceImpl implements CollectionService
         
     OrchestrationClient client = null;
     
-    IKafkaProducer kafkaProducer = null;
+    Map<String, IKafkaProducer> kafkaProducerMap = new HashMap<String, IKafkaProducer>();
     
     boolean isRunning = false;
     
@@ -83,16 +86,42 @@ public class CollectionServiceImpl implements CollectionService
             return;
         }
         
+        String serviceGroupName = serviceDataProperties.get(CollectionService.SERVICE_SERVICEGROUPNAME);
         String serviceName = serviceDataProperties.get(CollectionService.SERVICE_SERVICENAME);
         String ip = serviceDataProperties.get(CollectionService.SERVICE_IP);
         String portStr = serviceDataProperties.get(CollectionService.SERVICE_PORT);
         int port = Integer.parseInt(portStr);
         String rootUrl = serviceDataProperties.get(CollectionService.SERVICE_ROOTURL);
-        serviceData = new ZNodeServiceData(ip, serviceName, port, rootUrl);
+        serviceData = new ZNodeServiceData(ip, serviceGroupName, serviceName, port, rootUrl);
         
         client = new OrchestrationClientImpl(serviceData, watcher, zookeeperHostIp, zNodeInfoProperties);
-        kafkaProducer = new IKafkaProducerImpl(kafkaProducerProperties, new HashSet<String>(), "kafkaProducer");
+        createKafkaProducerMap(kafkaProducerProperties);
         start();
+    }
+    
+    private void createKafkaProducerMap(Map<String, Object>kafkaProducerProperties)
+    {
+        if (kafkaProducerProperties == null)
+        {
+            logger.error("kafka properties shoud not be null");
+            return;
+        }
+        for(Map.Entry<String, Object> entry : kafkaProducerProperties.entrySet())
+        {
+            if(entry.getValue() instanceof Map)
+            {
+                @SuppressWarnings("unchecked")
+                Map<String, String> kafkaProperty = (Map<String, String>)entry.getValue();
+                String topicGourp = entry.getKey();
+                IKafkaProducer kafkaProducer = new IKafkaProducerImpl(kafkaProperty, new HashSet<String>(), topicGourp);
+                kafkaProducerMap.put(topicGourp, kafkaProducer);
+            }
+            else
+            {
+                logger.error("kafka property shoud not be null " + entry.getKey());
+                continue;
+            }
+        }
     }
 
     @Override
@@ -173,6 +202,34 @@ public class CollectionServiceImpl implements CollectionService
         }
     }
     
+    private void updateTopicListForKafkaProducer(ZNodeDependenceData depData)
+    {
+        Map<String, Set<String>> topicMap = ZNodeDataUtil.getTopicGroupInfo(depData);
+        logger.info("The Dependence data is: " + depData);
+        for(Map.Entry<String, IKafkaProducer> entry : kafkaProducerMap.entrySet())
+        {
+            String topicGroup = entry.getKey();
+            Set<String> topicList = topicMap.get(topicGroup);
+            entry.getValue().updateTopic(topicList);
+        }
+    }
+    
+    private void startKafkaProducers()
+    {
+        for(Map.Entry<String, IKafkaProducer> entry : kafkaProducerMap.entrySet())
+        {
+            entry.getValue().start();
+        }
+    }
+    
+    private void stopKafkaProducers()
+    {
+        for(Map.Entry<String, IKafkaProducer> entry : kafkaProducerMap.entrySet())
+        {
+            entry.getValue().stop();
+        }
+    }
+    
     class OrchestrationWatcher implements OrchestartionCallBack
     {
         
@@ -186,7 +243,10 @@ public class CollectionServiceImpl implements CollectionService
             {
                 KafkaMessage msg = new KafkaMessage(1, "HelloWord");
                 logger.info("Send a msg: " + msg);
-                kafkaProducer.sendMessage(msg);
+                for(Map.Entry<String, IKafkaProducer> entry : kafkaProducerMap.entrySet())
+                {
+                    entry.getValue().sendMessage(msg);
+                }
                 try
                 {
                     Thread.sleep(5000);
@@ -218,10 +278,9 @@ public class CollectionServiceImpl implements CollectionService
             if (state == OrchestrationServiceState.READY && curState == OrchestrationServiceState.NOTREADY)
             {
                 logger.info("The service is started");
-                Set<String> topic = new HashSet<String>();
-                topic.add("wyb");
-                kafkaProducer.updateTopic(topic);
-                kafkaProducer.start();
+                ZNodeDependenceData depData = client.getDepData();
+                updateTopicListForKafkaProducer(depData);
+                startKafkaProducers();
                 sendMessageThread = new Thread(new Runnable(){
 
                     @Override
@@ -240,14 +299,13 @@ public class CollectionServiceImpl implements CollectionService
                 logger.info("The service is stopped");
                 isSendMessageThreadRun = false;
                 sendMessageThread.interrupt();
-                kafkaProducer.stop();
+                stopKafkaProducers();
                 curState = state;
             }
             else if(state == OrchestrationServiceState.DEPCHANGE)
             {
-                Set<String> topic = new HashSet<String>();
-                topic.add("wyb");
-                kafkaProducer.updateTopic(topic);
+                ZNodeDependenceData depData = client.getDepData();
+                updateTopicListForKafkaProducer(depData);
                 logger.info("The dependence is changed");
             }
         }
