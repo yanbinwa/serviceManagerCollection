@@ -13,6 +13,7 @@ public interface CollectionService extends InitializingBean, ServiceLifeCycle
     public static final String SERVICE_SERVICENAME = "serviceName";
     public static final String SERVICE_PORT = "port";
     public static final String SERVICE_ROOTURL = "rootUrl";
+    public static final String SERVICE_TOPICINFO = "topicInfo";
     
     String getServiceName() throws ServiceUnavailableException;
     

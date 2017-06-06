@@ -1,7 +1,6 @@
 package yanbinwa.iCollection.service;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -21,6 +20,7 @@ import yanbinwa.common.orchestrationClient.OrchestrationServiceState;
 import yanbinwa.common.zNodedata.ZNodeDataUtil;
 import yanbinwa.common.zNodedata.ZNodeDependenceData;
 import yanbinwa.common.zNodedata.ZNodeServiceData;
+import yanbinwa.common.zNodedata.ZNodeServiceDataWithKafkaTopicImpl;
 import yanbinwa.iCollection.exception.ServiceUnavailableException;
 
 @Service("collectionService")
@@ -92,7 +92,8 @@ public class CollectionServiceImpl implements CollectionService
         String portStr = serviceDataProperties.get(CollectionService.SERVICE_PORT);
         int port = Integer.parseInt(portStr);
         String rootUrl = serviceDataProperties.get(CollectionService.SERVICE_ROOTURL);
-        serviceData = new ZNodeServiceData(ip, serviceGroupName, serviceName, port, rootUrl);
+        String topicInfo = serviceDataProperties.get(CollectionService.SERVICE_TOPICINFO);
+        serviceData = new ZNodeServiceDataWithKafkaTopicImpl(ip, serviceGroupName, serviceName, port, rootUrl, topicInfo);
         
         client = new OrchestrationClientImpl(serviceData, watcher, zookeeperHostIp, zNodeInfoProperties);
         createKafkaProducerMap(kafkaProducerProperties);
@@ -113,7 +114,7 @@ public class CollectionServiceImpl implements CollectionService
                 @SuppressWarnings("unchecked")
                 Map<String, String> kafkaProperty = (Map<String, String>)entry.getValue();
                 String topicGourp = entry.getKey();
-                IKafkaProducer kafkaProducer = new IKafkaProducerImpl(kafkaProperty, new HashSet<String>(), topicGourp);
+                IKafkaProducer kafkaProducer = new IKafkaProducerImpl(kafkaProperty, topicGourp);
                 kafkaProducerMap.put(topicGourp, kafkaProducer);
             }
             else
@@ -204,13 +205,18 @@ public class CollectionServiceImpl implements CollectionService
     
     private void updateTopicListForKafkaProducer(ZNodeDependenceData depData)
     {
-        Map<String, Set<String>> topicMap = ZNodeDataUtil.getTopicGroupInfo(depData);
         logger.info("The Dependence data is: " + depData);
-        for(Map.Entry<String, IKafkaProducer> entry : kafkaProducerMap.entrySet())
+        Map<String, Map<String, Set<Integer>>> topicGroupsMap = ZNodeDataUtil.getTopicGroupToTopicNameToPartitionKeyMap(depData);
+        if (topicGroupsMap == null)
         {
-            String topicGroup = entry.getKey();
-            Set<String> topicList = topicMap.get(topicGroup);
-            entry.getValue().updateTopic(topicList);
+            logger.error("Can not get any kafka topic parititon map");
+            return;
+        }
+        for (Map.Entry<String, Map<String, Set<Integer>>> entry : topicGroupsMap.entrySet())
+        {
+            String topicGroupName = entry.getKey();
+            IKafkaProducer producer = kafkaProducerMap.get(topicGroupName);
+            producer.updateTopicToPartitionSetMap(entry.getValue());
         }
     }
     

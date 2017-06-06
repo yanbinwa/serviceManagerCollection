@@ -5,6 +5,7 @@ serviceProperties :
         ip : "localhost"
         port : 8082
         rootUrl : "/collection"
+        topicInfo : "{\"producers\":[\"cacheTopic\"]}"
     zNodeInfoProperties:
         regZnodePath : "/regManageNode"
         regZnodeChildPath : "/regManageNode/regManageChildNode"
@@ -17,6 +18,28 @@ serviceProperties :
             batchSize : "200"
             retries : "0"
             maxBlockMs : "5000"
+            
+serviceProperties1 :
+    serviceDataProperties:
+        serviceGroupName : "collection"
+        serviceName : "collection_1"
+        ip : "localhost"
+        port : 8082
+        rootUrl : "/collection"
+        topicInfo : "{\"producers\":[\"cacheTopic\"]}"
+    zNodeInfoProperties:
+        regZnodePath : "/regManageNode"
+        regZnodeChildPath : "/regManageNode/regManageChildNode"
+        depZnodePath : "/depManageNode"
+        zookeeperHostport : "192.168.56.17:2181"
+    kafkaProperties:
+        producers:
+            cacheTopic:
+                brokerList : "192.168.56.17:9092"
+                serializerClass : "org.apache.kafka.common.serialization.StringSerializer"
+                batchSize : "200"
+                retries : "0"
+                maxBlockMs : "5000"
 
 tomcatPort : 8082
 
