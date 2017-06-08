@@ -1,21 +1,23 @@
-serviceProperties:
+serviceProperties :
     serviceDataProperties:
         serviceGroupName : "collection"
         serviceName : "collection_B"
         ip : "172.18.0.32"
         port : 8102
         rootUrl : "/collection"
+        topicInfo : "{\"producers\":[\"cacheTopic\"]}"
     zNodeInfoProperties:
         regZnodePath : "/regManageNode"
         regZnodeChildPath : "/regManageNode/regManageChildNode"
         depZnodePath : "/depManageNode"
         zookeeperHostport : "172.18.0.11:2191,172.18.0.12:2192,172.18.0.13:2193"
-    kafkaProducerProperties:
-        cacheTopic:
-            brokerList : "172.18.0.41:9101,172.18.0.42:9102,172.18.0.43:9103"
-            serializerClass : "org.apache.kafka.common.serialization.StringSerializer"
-            batchSize : "200"
-            retries : "0"
-            maxBlockMs : "5000"
+    kafkaProperties:
+        producers:
+            cacheTopic:
+                brokerList : "172.18.0.41:9101,172.18.0.42:9102,172.18.0.43:9103"
+                serializerClass : "org.apache.kafka.common.serialization.StringSerializer"
+                batchSize : "200"
+                retries : "0"
+                maxBlockMs : "5000"
 
 tomcatPort: 8102
