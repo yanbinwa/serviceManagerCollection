@@ -21,3 +21,5 @@ serviceProperties :
                 maxBlockMs : "5000"
 
 tomcatPort: 8102
+
+logging.file : "/opt/collection/log/console.log"
