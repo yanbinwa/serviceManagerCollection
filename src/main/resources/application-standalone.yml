@@ -1,0 +1,25 @@
+serviceProperties :
+    serviceDataProperties:
+        serviceGroupName : "collection"
+        serviceName : "collection_standalone"
+        ip : "172.18.0.31"
+        port : 8101
+        rootUrl : "/collection"
+        topicInfo : "{\"producers\":[\"cacheTopic\"]}"
+    zNodeInfoProperties:
+        regZnodePath : "/regManageNode"
+        regZnodeChildPath : "/regManageNode/regManageChildNode"
+        depZnodePath : "/depManageNode"
+        zookeeperHostport : "172.18.0.11:2191"
+    kafkaProperties:
+        producers:
+            cacheTopic:
+                brokerList : "172.18.0.41:9101"
+                serializerClass : "org.apache.kafka.common.serialization.StringSerializer"
+                batchSize : "200"
+                retries : "0"
+                maxBlockMs : "5000"
+
+tomcatPort: 8101
+
+logging.file : "/opt/collection/log/console.log"
