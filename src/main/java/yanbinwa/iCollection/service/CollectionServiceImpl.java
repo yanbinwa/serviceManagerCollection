@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 
+import yanbinwa.common.exceptions.ServiceUnavailableException;
 import yanbinwa.common.kafka.consumer.IKafkaConsumer;
 import yanbinwa.common.kafka.message.KafkaMessage;
 import yanbinwa.common.kafka.producer.IKafkaProducer;
@@ -21,8 +22,8 @@ import yanbinwa.common.utils.KafkaUtil;
 import yanbinwa.common.zNodedata.ZNodeDataUtil;
 import yanbinwa.common.zNodedata.ZNodeDependenceData;
 import yanbinwa.common.zNodedata.ZNodeServiceData;
-import yanbinwa.common.zNodedata.ZNodeServiceDataWithKafkaTopicImpl;
-import yanbinwa.iCollection.exception.ServiceUnavailableException;
+import yanbinwa.common.zNodedata.ZNodeServiceDataImpl;
+import yanbinwa.common.zNodedata.decorate.ZNodeDecorateType;
 
 @Service("collectionService")
 @EnableAutoConfiguration
@@ -96,7 +97,8 @@ public class CollectionServiceImpl implements CollectionService
         int port = Integer.parseInt(portStr);
         String rootUrl = serviceDataProperties.get(CollectionService.SERVICE_ROOTURL);
         String topicInfo = serviceDataProperties.get(CollectionService.SERVICE_TOPICINFO);
-        serviceData = new ZNodeServiceDataWithKafkaTopicImpl(ip, serviceGroupName, serviceName, port, rootUrl, topicInfo);
+        serviceData = new ZNodeServiceDataImpl(ip, serviceGroupName, serviceName, port, rootUrl);
+        serviceData.addServiceDataDecorate(ZNodeDecorateType.KAFKA, topicInfo);
         
         client = new OrchestrationClientImpl(serviceData, watcher, zookeeperHostIp, zNodeInfoProperties);
         createKafkaProducerAndConsumer(kafkaProperties);
@@ -191,6 +193,7 @@ public class CollectionServiceImpl implements CollectionService
     {
         logger.info("The Dependence data is: " + depData);
         Map<String, Map<String, Set<Integer>>> topicGroupsMap = ZNodeDataUtil.getTopicGroupToTopicNameToPartitionKeyMap(depData);
+        logger.info("The topicGroupsMap is: " + topicGroupsMap);
         if (topicGroupsMap == null)
         {
             logger.error("Can not get any kafka topic parititon map");
@@ -198,6 +201,7 @@ public class CollectionServiceImpl implements CollectionService
         }
         for (Map.Entry<String, Map<String, Set<Integer>>> entry : topicGroupsMap.entrySet())
         {
+            logger.debug("Key is: " + entry.getKey() + "; Value is " + entry.getValue());
             String topicGroupName = entry.getKey();
             IKafkaProducer producer = kafkaProducerMap.get(topicGroupName);
             producer.updateTopicToPartitionSetMap(entry.getValue());

@@ -5,7 +5,7 @@ serviceProperties :
         ip : "172.18.0.31"
         port : 8101
         rootUrl : "/collection"
-        topicInfo : "{\"producers\":[\"cacheTopic\"]}"
+        topicInfo : "{\"producers\":[\"aggregationTopic\"]}"
     zNodeInfoProperties:
         regZnodePath : "/regManageNode"
         regZnodeChildPath : "/regManageNode/regManageChildNode"
@@ -13,7 +13,7 @@ serviceProperties :
         zookeeperHostport : "172.18.0.11:2191"
     kafkaProperties:
         producers:
-            cacheTopic:
+            aggregationTopic:
                 brokerList : "172.18.0.41:9101"
                 serializerClass : "org.apache.kafka.common.serialization.StringSerializer"
                 batchSize : "200"

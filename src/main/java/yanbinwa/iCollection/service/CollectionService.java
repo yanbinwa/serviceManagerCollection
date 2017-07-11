@@ -2,8 +2,8 @@ package yanbinwa.iCollection.service;
 
 import org.springframework.beans.factory.InitializingBean;
 
+import yanbinwa.common.exceptions.ServiceUnavailableException;
 import yanbinwa.common.iInterface.ServiceLifeCycle;
-import yanbinwa.iCollection.exception.ServiceUnavailableException;
 
 public interface CollectionService extends InitializingBean, ServiceLifeCycle
 {
