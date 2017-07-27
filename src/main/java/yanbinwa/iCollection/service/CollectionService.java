@@ -3,9 +3,10 @@ package yanbinwa.iCollection.service;
 import org.springframework.beans.factory.InitializingBean;
 
 import yanbinwa.common.exceptions.ServiceUnavailableException;
+import yanbinwa.common.iInterface.ConfigServiceIf;
 import yanbinwa.common.iInterface.ServiceLifeCycle;
 
-public interface CollectionService extends InitializingBean, ServiceLifeCycle
+public interface CollectionService extends InitializingBean, ServiceLifeCycle, ConfigServiceIf
 {
     
     public static final String SERVICE_IP = "ip";

@@ -3,13 +3,20 @@ package yanbinwa.iCollection.service;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.log4j.Logger;
+import org.json.JSONObject;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 
+import yanbinwa.common.configClient.ConfigCallBack;
+import yanbinwa.common.configClient.ConfigClient;
+import yanbinwa.common.configClient.ConfigClientImpl;
+import yanbinwa.common.configClient.ServiceConfigState;
+import yanbinwa.common.constants.CommonConstants;
 import yanbinwa.common.exceptions.ServiceUnavailableException;
 import yanbinwa.common.kafka.consumer.IKafkaConsumer;
 import yanbinwa.common.kafka.message.KafkaMessage;
@@ -18,6 +25,7 @@ import yanbinwa.common.orchestrationClient.OrchestartionCallBack;
 import yanbinwa.common.orchestrationClient.OrchestrationClient;
 import yanbinwa.common.orchestrationClient.OrchestrationClientImpl;
 import yanbinwa.common.orchestrationClient.OrchestrationServiceState;
+import yanbinwa.common.utils.JsonUtil;
 import yanbinwa.common.utils.KafkaUtil;
 import yanbinwa.common.zNodedata.ZNodeDataUtil;
 import yanbinwa.common.zNodedata.ZNodeDependenceData;
@@ -36,7 +44,7 @@ public class CollectionServiceImpl implements CollectionService
     
     Map<String, String> serviceDataProperties;
     Map<String, String> zNodeInfoProperties;
-    Map<String, Object> kafkaProperties;
+    
     
     public void setServiceDataProperties(Map<String, String> properties)
     {
@@ -58,19 +66,11 @@ public class CollectionServiceImpl implements CollectionService
         return this.zNodeInfoProperties;
     }
     
-    public void setKafkaProperties(Map<String, Object> properties)
-    {
-        this.kafkaProperties = properties;
-    }
-    
-    public Map<String, Object> getKafkaProperties()
-    {
-        return this.kafkaProperties;
-    }
+    Map<String, Object> kafkaProperties = null;
     
     ZNodeServiceData serviceData = null;
         
-    OrchestrationClient client = null;
+    OrchestrationClient orchestrationclient = null;
     
     Map<String, IKafkaProducer> kafkaProducerMap = new HashMap<String, IKafkaProducer>();
     
@@ -78,12 +78,23 @@ public class CollectionServiceImpl implements CollectionService
     
     boolean isRunning = false;
     
+    boolean isConfiged = false;
+    
     OrchestrationWatcher watcher = new OrchestrationWatcher();
+    
+    private ConfigClient configClient = null;
+    
+    ConfigCallBack configCallBack = new CollectionConfigCallBack();
+    
+    private String zookeeperHostIp = null;
+    
+    /** config update lock */
+    ReentrantLock lock = new ReentrantLock();
         
     @Override
     public void afterPropertiesSet() throws Exception
     {
-        String zookeeperHostIp = zNodeInfoProperties.get(OrchestrationClient.ZOOKEEPER_HOSTPORT_KEY);
+        zookeeperHostIp = zNodeInfoProperties.get(OrchestrationClient.ZOOKEEPER_HOSTPORT_KEY);
         if(zookeeperHostIp == null)
         {
             logger.error("Zookeeper host and port should not be null");
@@ -100,8 +111,8 @@ public class CollectionServiceImpl implements CollectionService
         serviceData = new ZNodeServiceDataImpl(ip, serviceGroupName, serviceName, port, rootUrl);
         serviceData.addServiceDataDecorate(ZNodeDecorateType.KAFKA, topicInfo);
         
-        client = new OrchestrationClientImpl(serviceData, watcher, zookeeperHostIp, zNodeInfoProperties);
-        createKafkaProducerAndConsumer(kafkaProperties);
+        configClient = new ConfigClientImpl(serviceData, configCallBack, zookeeperHostIp, zNodeInfoProperties);
+        orchestrationclient = new OrchestrationClientImpl(serviceData, watcher, zookeeperHostIp, zNodeInfoProperties);
         start();
     }
 
@@ -111,8 +122,8 @@ public class CollectionServiceImpl implements CollectionService
         if(!isRunning)
         {
             isRunning = true;
+            configClient.start();
             logger.info("Start collection service ...");
-            client.start();
         }
         else
         {
@@ -126,8 +137,8 @@ public class CollectionServiceImpl implements CollectionService
         if(isRunning)
         {
             isRunning = false;
+            configClient.stop();
             logger.info("Stop collection service ...");
-            client.stop();
         }
         else
         {
@@ -138,7 +149,7 @@ public class CollectionServiceImpl implements CollectionService
     @Override
     public String getServiceName() throws ServiceUnavailableException
     {
-        if(!isRunning)
+        if(!isServiceReadyToWork())
         {
             throw new ServiceUnavailableException();
         }
@@ -148,27 +159,27 @@ public class CollectionServiceImpl implements CollectionService
     @Override
     public boolean isServiceReady() throws ServiceUnavailableException
     {
-        if(!isRunning)
+        if(!isServiceReadyToWork())
         {
             throw new ServiceUnavailableException();
         }
-        return client.isReady();
+        return orchestrationclient.isReady();
     }
 
     @Override
     public String getServiceDependence() throws ServiceUnavailableException
     {
-        if(!isRunning)
+        if(!isServiceReadyToWork())
         {
             throw new ServiceUnavailableException();
         }
-        return client.getDepData().toString();
+        return orchestrationclient.getDepData().toString();
     }
 
     @Override
     public void startManageService()
     {
-        if(!isRunning)
+        if(!isServiceReadyToWork())
         {
             start();
         }
@@ -181,6 +192,37 @@ public class CollectionServiceImpl implements CollectionService
         {
             stop();
         }
+    }
+    
+    @Override
+    public void startWork()
+    {
+        logger.info("Start work collection service ...");
+        isRunning = true;
+        init();
+        orchestrationclient.start();
+    }
+
+    @Override
+    public void stopWork()
+    {
+        logger.info("Stop work collection service ...");
+        isRunning = false;
+        orchestrationclient.stop();
+        reset();
+    }
+    
+    private void init()
+    {
+        createKafkaProducerAndConsumer(kafkaProperties);
+    }
+    
+    private void reset()
+    {
+        kafkaProperties = null;
+        
+        /** 这里不能这样，会导致在处理stop时，无法关闭kafka connection */
+        //resetKafkaProducerAndConsumer();
     }
     
     private void createKafkaProducerAndConsumer(Map<String, Object> kafkaProperties)
@@ -206,6 +248,13 @@ public class CollectionServiceImpl implements CollectionService
             IKafkaProducer producer = kafkaProducerMap.get(topicGroupName);
             producer.updateTopicToPartitionSetMap(entry.getValue());
         }
+    }
+    
+    @SuppressWarnings("unused")
+    private void resetKafkaProducerAndConsumer()
+    {
+        kafkaProducerMap.clear();
+        kafkaConsumerMap.clear();
     }
     
     private void startKafkaProducers()
@@ -295,7 +344,7 @@ public class CollectionServiceImpl implements CollectionService
             if (state == OrchestrationServiceState.READY && curState == OrchestrationServiceState.NOTREADY)
             {
                 logger.info("The service is started");
-                ZNodeDependenceData depData = client.getDepData();
+                ZNodeDependenceData depData = orchestrationclient.getDepData();
                 updateTopicListForKafkaProducer(depData);
                 startKafkaProducers();
                 startKafkaConsumers();
@@ -323,9 +372,102 @@ public class CollectionServiceImpl implements CollectionService
             }
             else if(state == OrchestrationServiceState.DEPCHANGE)
             {
-                ZNodeDependenceData depData = client.getDepData();
+                ZNodeDependenceData depData = orchestrationclient.getDepData();
                 updateTopicListForKafkaProducer(depData);
                 logger.info("The dependence is changed");
+            }
+        }
+    }
+    
+    @SuppressWarnings("unchecked")
+    private void updateServiceConfigProperties(JSONObject serviceConfigPropertiesObj)
+    {
+        if (!serviceConfigPropertiesObj.has(CommonConstants.SERVICE_KAFKA_PROPERTIES_KEY))
+        {
+            logger.info("serviceConfigPropertiesObj does not contains kafkaProperties; serviceConfigPropertiesObj: " + serviceConfigPropertiesObj);
+            return;
+        }
+        JSONObject kafkaPropertiesTmpObj = serviceConfigPropertiesObj.getJSONObject(CommonConstants.SERVICE_KAFKA_PROPERTIES_KEY);
+        
+        Map<String, Object> kafkaPropertiesTmp = (Map<String, Object>) JsonUtil.JsonStrToMap(kafkaPropertiesTmpObj.toString());
+        if (kafkaPropertiesTmp == null)
+        {
+            logger.info("kafkaProperties is null");
+            kafkaPropertiesTmp = new HashMap<String, Object>();
+        }
+        boolean ret = compareAndUpdataServiceConfigProperties(kafkaPropertiesTmp);
+        if (ret)
+        {
+            logger.info("Update the serviceProperties for Collection");
+            logger.info("kafkaPropertiesTmp is: " + kafkaPropertiesTmp);
+            if (isConfiged)
+            {
+                stopWork();
+            }
+            isConfiged = true;
+            startWork();
+        }
+    }
+    
+    private boolean compareAndUpdataServiceConfigProperties(Map<String, Object> kafkaPropertiesTmp)
+    {
+        lock.lock();
+        try
+        {
+            if (kafkaProperties == null)
+            {
+                kafkaProperties = kafkaPropertiesTmp;
+                return true;
+            }
+            boolean isChanged = false;
+            if (!kafkaProperties.equals(kafkaPropertiesTmp))
+            {
+                isChanged = true;
+                kafkaProperties = kafkaPropertiesTmp;
+            }
+            return isChanged;
+        }
+        finally
+        {
+            lock.unlock();
+        }
+    }
+    
+    private boolean isServiceReadyToWork()
+    {
+        return isRunning && isConfiged;
+    }
+    
+    class CollectionConfigCallBack implements ConfigCallBack
+    {
+
+        @Override
+        public void handleServiceConfigChange(ServiceConfigState state)
+        {
+            logger.info("Service config state is: " + state);
+            if (state == ServiceConfigState.CREATED || state == ServiceConfigState.CHANGED)
+            {
+                JSONObject serviceConfigPropertiesObj = configClient.getServiceConfigProperties();
+                if (ZNodeDataUtil.validateServiceConfigProperties(serviceData, serviceConfigPropertiesObj))
+                {
+                    updateServiceConfigProperties(serviceConfigPropertiesObj);
+                }
+                else
+                {
+                    logger.error("Un valid service config properties: " + serviceConfigPropertiesObj);
+                }
+            }
+            else if (state == ServiceConfigState.DELETED || state == ServiceConfigState.CLOSE)
+            {
+                if (isConfiged)
+                {
+                    stopWork();
+                }
+                isConfiged = false;
+            }
+            else
+            {
+                logger.error("Unknow ServiceConfigState: " + state);
             }
         }
     }
