@@ -198,7 +198,6 @@ public class CollectionServiceImpl implements CollectionService
     public void startWork()
     {
         logger.info("Start work collection service ...");
-        isRunning = true;
         init();
         orchestrationclient.start();
     }
@@ -207,7 +206,6 @@ public class CollectionServiceImpl implements CollectionService
     public void stopWork()
     {
         logger.info("Stop work collection service ...");
-        isRunning = false;
         orchestrationclient.stop();
         reset();
     }
